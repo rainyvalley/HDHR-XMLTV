@@ -1,0 +1,12 @@
+services:
+  hdhr-xmltv:
+    build: .
+    container_name: hdhr-xmltv
+    restart: unless-stopped
+    environment:
+      DEVICE_IP: <your IP Here>
+      TZ: America/Los_Angeles
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./data:/data
