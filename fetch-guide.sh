@@ -51,8 +51,15 @@ if [ "$RUN_ONCE" = "1" ]; then
 fi
 
 if [ "$SERVE" = "1" ]; then
-  httpd -p "$PORT" -h "$DATA_DIR"
-  log "serving $DATA_DIR on :$PORT  ->  http://<host>:$PORT/guide.xml"
+  # Alpine ships httpd in busybox-extras, not in the base busybox
+  if command -v httpd >/dev/null 2>&1; then HTTPD="httpd"
+  elif command -v busybox-extras >/dev/null 2>&1; then HTTPD="busybox-extras httpd"
+  else HTTPD=""; fi
+  if [ -n "$HTTPD" ] && $HTTPD -p "$PORT" -h "$DATA_DIR"; then
+    log "serving $DATA_DIR on :$PORT  ->  http://<host>:$PORT/guide.xml"
+  else
+    log "ERROR: could not start the HTTP server"
+  fi
 fi
 
 while true; do
