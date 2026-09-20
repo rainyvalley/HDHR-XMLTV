@@ -41,3 +41,9 @@ One-off test fetch without starting the server:
 
 Guide data is 2 days without a DVR guide subscription, 14 days with one. See the
 [SiliconDust docs](https://github.com/Silicondust/documentation/wiki/XMLTV-Guide-Data).
+
+---
+
+## A note on AI assistance
+
+Most of this project — code, configuration, and documentation — was written with the help of generative AI. Everything in here was reviewed, tested against real hardware, and corrected by a human before being committed; nothing was accepted on the model's say-so.
