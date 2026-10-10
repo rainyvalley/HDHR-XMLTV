@@ -34,14 +34,18 @@ fetch() {
        --data-urlencode "DeviceAuth=$auth" -o "$tmp" \
     || { log "ERROR: XMLTV download failed"; rm -f "$tmp"; return 1; }
 
-  # sanity check so a bad response never replaces a good guide
-  if ! grep -q '<tv' "$tmp" || ! grep -q '<programme' "$tmp"; then
+  # one pass over the file: sanity check so a bad response never replaces a
+  # good guide, plus the channel/programme counts for the log
+  read -r has_tv chans progs <<EOF
+$(awk '/<tv/{t=1}/<channel /{c++}/<programme/{p++}END{print t+0, c+0, p+0}' "$tmp")
+EOF
+  if [ "$has_tv" -eq 0 ] || [ "$progs" -eq 0 ]; then
     log "ERROR: response doesn't look like XMLTV, keeping old guide"
     head -c 300 "$tmp"; echo
     rm -f "$tmp"; return 1
   fi
   mv "$tmp" "$OUT"
-  log "published $OUT ($(wc -c < "$OUT") bytes, $(grep -c '<channel ' "$OUT") channels, $(grep -c '<programme' "$OUT") programmes)"
+  log "published $OUT ($(wc -c < "$OUT") bytes, $chans channels, $progs programmes)"
 }
 
 mkdir -p "$DATA_DIR"
@@ -59,19 +63,22 @@ if [ "$SERVE" = "1" ]; then
     log "serving $DATA_DIR on :$PORT  ->  http://<host>:$PORT/guide.xml"
   else
     log "ERROR: could not start the HTTP server"
+    exit 1
   fi
 fi
 
 while true; do
-  # skip the fetch on restart if the file is fresher than 20h
+  # SiliconDust asks for randomized 20-28h between requests
+  s=$(awk 'BEGIN{srand(); print int(72000 + rand()*28800)}')
+  # skip the fetch on restart if the file is fresher than 20h, but
+  # subtract its age so the gap stays in the 20-28h window
   if [ -s "$OUT" ] && [ -n "$(find "$OUT" -mmin -1200 2>/dev/null)" ]; then
-    log "guide.xml is less than 20h old, not refetching"
+    age=$(( $(date +%s) - $(stat -c %Y "$OUT") ))
+    s=$(( s - age ))
+    log "guide.xml is less than 20h old, next fetch in $s s"
   elif ! fetch; then
     log "retrying in 15 min"; sleep 900; continue
   fi
-  # SiliconDust asks for randomized 20-28h between requests
-  s=$(awk 'BEGIN{srand(); print int(72000 + rand()*28800)}')
   log "next fetch in $s s"
   sleep "$s"
-  # force a refetch after the sleep (file is now >20h old anyway)
 done
