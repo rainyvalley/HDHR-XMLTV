@@ -7,6 +7,8 @@ name: Docker
 
 on:
   schedule:
+    # Kept as a build-only canary to keep the GHA layer cache warm; the
+    # scheduled run is never pushed (see push:false on the build step).
     - cron: '37 9 * * *'
   push:
     branches: [ "main" ]
@@ -14,6 +16,11 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+
+# Cancel superseded PR builds only; main, tag and schedule runs never cancel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -37,10 +44,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install the cosign tool except on PR
+      # Install the cosign tool only where the image is actually pushed
+      # (push to main / v* tags). Scheduled runs build without pushing.
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
         with:
           cosign-release: 'v2.2.4'
@@ -51,10 +59,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
-      # Login against a Docker registry except on PR
+      # Login against a Docker registry only where the image is actually pushed
+      # (push to main / v* tags)
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push'
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
@@ -69,30 +78,67 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      # Build and push Docker image with Buildx (don't push on PR)
+      # Build and push Docker image with Buildx. Push only on push-to-main and
+      # v* tags; PRs build locally (loaded for the smoke test below), the daily
+      # cron builds only to warm the layer cache.
       # https://github.com/docker/build-push-action
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          push: ${{ github.event_name == 'push' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          # On the scheduled build-only canary, metadata tags are empty, so
+          # fall back to a throwaway local tag; the image is never pushed.
+          tags: ${{ github.event_name == 'schedule' && 'canary-build' || steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Sign the resulting Docker image digest except on PRs.
+      # Smoke test the freshly built image against the repo's mock tuner/API:
+      # fetch a guide and write it to a throwaway dir. PRs only — scheduled
+      # and main builds are either not loaded locally or already covered by
+      # test.yml.
+      - name: Smoke test image (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Start the mock tuner/API and wait for readiness (host-gateway is how
+          # the container reaches the runner).
+          python3 -I tests/mock_server.py 8964 0.0.0.0 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8964/discover.json >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8964/discover.json || {
+            echo "::error::mock server did not become ready"
+            exit 1
+          }
+          IMAGE="$(echo "${{ steps.meta.outputs.tags }}" | head -n1)"
+          echo "smoke-testing image: $IMAGE"
+          SMOKE="$(mktemp -d)"
+          docker run --rm --add-host=host.docker.internal:host-gateway \
+            -e RUN_ONCE=1 -e SERVE=0 \
+            -e DEVICE_URL=http://host.docker.internal:8964 \
+            -e API_BASE=http://host.docker.internal:8964 \
+            -v "$SMOKE":/data \
+            "$IMAGE"
+          test -s "$SMOKE/guide.xml"
+          grep -q '<tv[ >]' "$SMOKE/guide.xml"
+          echo "smoke test OK: $(wc -c < "$SMOKE/guide.xml") byte guide.xml published"
+
+      # Sign the published Docker image digest — only on real publishes
+      # (push to main / v* tags).
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.  If you would like to publish
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name == 'push' }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@"${DIGEST}"

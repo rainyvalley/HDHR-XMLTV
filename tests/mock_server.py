@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Mock HDHomeRun tuner + SiliconDust API for fetch-guide.sh integration tests.
+
+Routes (GET only):
+  /discover.json          -> minimal SiliconDust-style discovery document
+  /api/xmltv?...          -> minimal valid XMLTV guide (plain, --compressed handles it)
+  /bad/...                -> 200 with garbage (the script's own sanity check must catch it)
+  /err/...                -> 500
+
+Usage: python3 tests/mock_server.py [port]   (default 8964, binds 127.0.0.1)
+"""
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+DISCOVER = '{"DeviceID": "DEADBEEF0123", "DeviceAuth": "abc123MOCKAUTHTOKEN0", "FriendlyName": "mock-tuner"}'
+XMLTV = """<tv generator-info-name="mock-server">
+  <channel id="2.1"><display-name>MOCK 2.1</display-name></channel>
+  <programme start="20261009000000 +0000" stop="20261009010000 +0000" channel="2.1">
+    <title>Mock Show A</title>
+  </programme>
+  <programme start="20261009010000 +0000" stop="20261009020000 +0000" channel="2.1">
+    <title>Mock Show B</title>
+  </programme>
+</tv>
+"""
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        bad_xml = self.path.startswith("/bad")
+        error = self.path.startswith("/err")
+        if error:
+            body = b"internal server error\n"
+            self.send_response(500)
+        elif bad_xml:
+            body = b"<html><body>garbage, not xmltv</body></html>\n"
+            self.send_response(200)
+        elif self.path.split("?")[0] in ("/discover.json", "/api/xmltv"):
+            body = (DISCOVER if self.path.startswith("/discover.json") else XMLTV).encode()
+            self.send_response(200)
+        else:
+            self.send_response(404)
+            body = b"not found\n"
+        self.send_header("Content-Type", "application/xml")
+        self.send_header("Content-Type", "application/xml")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt, *args):
+        pass
+
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8964
+    host = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
+    server = HTTPServer((host, port), Handler)
+    sys.stderr.write(f"mock server ready on {host}:{port}\n")
+    sys.stderr.flush()
+    server.serve_forever()

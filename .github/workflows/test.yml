@@ -1,0 +1,130 @@
+name: Test
+
+# Static checks + behavioural tests for fetch-guide.sh and the Dockerfile.
+# Publish/sign behaviour lives in docker-publish.yml; a `docker build` there
+# runs on PRs too, but the sh-level integration tests live here.
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only cancel superseded PR runs; never cancel a run on main.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      MOCK_PORT: 8964
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install linters
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          # Pinned hadolint release; the download is from the official repo.
+          sudo curl -fsSL -o /usr/local/bin/hadolint \
+            https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          sudo chmod +x /usr/local/bin/hadolint
+          shellcheck --version
+          hadolint --version
+
+      - name: Shellcheck the fetch script
+        run: shellcheck -s sh fetch-guide.sh
+
+      - name: Hadolint the Dockerfile
+        # DL3018 (pin apk versions) is intentionally ignored: alpine:3.20's
+        # package index keeps moving past its EOL date, so pinning versions
+        # that exist today is how the build breaks tomorrow. Dockerfile has
+        # the same note.
+        run: hadolint --ignore DL3018 Dockerfile
+
+      - name: Validate docker-compose.yml
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: Start mock tuner/API server
+        run: |
+          # 0.0.0.0 so the docker-run smoke test in the registry workflow can
+          # reach it through the docker bridge gateway (not needed for this
+          # job's 127.0.0.1 runs, but harmless here).
+          python3 -I tests/mock_server.py "${MOCK_PORT}" 0.0.0.0 &
+          for _ in $(seq 1 30); do
+            curl -fsS "http://127.0.0.1:${MOCK_PORT}/discover.json" > /dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS "http://127.0.0.1:${MOCK_PORT}/discover.json" || {
+            echo "::error::mock server did not become ready"
+            exit 1
+          }
+          echo "mock server ready on 127.0.0.1:${MOCK_PORT}"
+
+      - name: Happy path (valid tuner, valid XMLTV)
+        run: |
+          DATA="$(mktemp -d)"
+          RUN_ONCE=1 \
+            DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
+            API_BASE="http://127.0.0.1:${MOCK_PORT}" \
+            DATA_DIR="$DATA" \
+            sh fetch-guide.sh
+          test -s "$DATA/guide.xml"
+          grep -q '<tv[ >]' "$DATA/guide.xml"
+          echo "published $(wc -c < "$DATA/guide.xml") bytes, $(grep -c '<programme' "$DATA/guide.xml") programmes"
+
+      - name: Bad-response path (garbage / HTTP 500, guide.xml must survive)
+        run: |
+          DATA="$(mktemp -d)"
+          printf '<tv><channel id="1.1"><display-name>old-good-guide</display-name></channel></tv>\n' > "$DATA/guide.xml"
+          cp "$DATA/guide.xml" "$DATA/guide.expected"
+
+          # /bad returns HTTP 200 with garbage: the script's own sanity check
+          # must reject it.
+          if RUN_ONCE=1 \
+              DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
+              API_BASE="http://127.0.0.1:${MOCK_PORT}/bad" \
+              DATA_DIR="$DATA" \
+              sh fetch-guide.sh; then
+            echo "::error::garbage response was accepted as XMLTV"
+            exit 1
+          fi
+          echo "garbage response correctly rejected"
+
+          # /err returns HTTP 500: curl -fsS must fail.
+          if RUN_ONCE=1 \
+              DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
+              API_BASE="http://127.0.0.1:${MOCK_PORT}/err" \
+              DATA_DIR="$DATA" \
+              sh fetch-guide.sh; then
+            echo "::error::HTTP 500 response was accepted as XMLTV"
+            exit 1
+          fi
+          echo "HTTP 500 correctly rejected"
+
+          # Either way: the pre-existing guide is byte-identical and no temp
+          # file was left behind.
+          cmp "$DATA/guide.xml" "$DATA/guide.expected"
+          if find "$DATA" -name '*.tmp' | grep -q .; then
+            echo "::error::temporary files left in DATA_DIR after failure:"
+            ls -la "$DATA"
+            exit 1
+          fi
+
+      - name: Unreachable tuner
+        run: |
+          DATA="$(mktemp -d)"
+          if RUN_ONCE=1 \
+              DEVICE_URL="http://127.0.0.1:59999" \
+              DATA_DIR="$DATA" \
+              sh fetch-guide.sh; then
+            echo "::error::unreachable tuner was not detected"
+            exit 1
+          fi
+          echo "unreachable tuner correctly failed"
