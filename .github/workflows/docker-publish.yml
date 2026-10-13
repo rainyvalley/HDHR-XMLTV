@@ -42,7 +42,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # Install the cosign tool only where the image is actually pushed
       # (push to main / v* tags). Scheduled runs build without pushing.
@@ -102,6 +104,10 @@ jobs:
       # test.yml.
       - name: Smoke test image (PR only)
         if: github.event_name == 'pull_request'
+        env:
+          # Via env, not ${{ }} inside the script, so step outputs are never
+          # spliced into shell source.
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           # Start the mock tuner/API and wait for readiness (host-gateway is how
           # the container reaches the runner).
@@ -114,7 +120,7 @@ jobs:
             echo "::error::mock server did not become ready"
             exit 1
           }
-          IMAGE="$(echo "${{ steps.meta.outputs.tags }}" | head -n1)"
+          IMAGE="$(printf '%s\n' "$TAGS" | head -n1)"
           echo "smoke-testing image: $IMAGE"
           SMOKE="$(mktemp -d)"
           docker run --rm --add-host=host.docker.internal:host-gateway \
