@@ -24,19 +24,21 @@ run_loop() {
 rc=0
 
 D=$(mktemp -d)
-printf '%s\n' "$OLD" > "$D/guide.xml"
-touch -d '+30 days' "$D/guide.xml"
+mkdir "$D/www"
+printf '%s\n' "$OLD" > "$D/www/guide.xml"
+touch -d '+30 days' "$D/www/guide.xml"
 run_loop "$D"
-if grep -q 'old-guide' "$D/guide.xml" || ! grep -q 'published' "$D/log"; then
+if grep -q 'old-guide' "$D/www/guide.xml" || ! grep -q 'published' "$D/log"; then
   echo "future-mtime guide.xml was not refetched:"; cat "$D/log"; rc=1
 fi
 rm -rf "$D"
 
 D=$(mktemp -d)
-printf '%s\n' "$OLD" > "$D/guide.xml"
-touch -d '-1 hour' "$D/guide.xml"
+mkdir "$D/www"
+printf '%s\n' "$OLD" > "$D/www/guide.xml"
+touch -d '-1 hour' "$D/www/guide.xml"
 run_loop "$D"
-if ! grep -q 'old-guide' "$D/guide.xml" || ! grep -q 'less than 20h old' "$D/log"; then
+if ! grep -q 'old-guide' "$D/www/guide.xml" || ! grep -q 'less than 20h old' "$D/log"; then
   echo "1h-old guide.xml was refetched instead of kept:"; cat "$D/log"; rc=1
 fi
 rm -rf "$D"

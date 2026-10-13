@@ -44,7 +44,7 @@ jobs:
           hadolint --version
 
       - name: Shellcheck the fetch script
-        run: shellcheck -s sh fetch-guide.sh
+        run: shellcheck -s sh fetch-guide.sh entrypoint.sh tests/*.sh
 
       - name: Hadolint the Dockerfile
         # DL3018 (pin apk versions) is intentionally ignored: alpine:3.20's
@@ -77,15 +77,16 @@ jobs:
             API_BASE="http://127.0.0.1:${MOCK_PORT}" \
             DATA_DIR="$DATA" \
             sh fetch-guide.sh
-          test -s "$DATA/guide.xml"
-          grep -q '<tv[ >]' "$DATA/guide.xml"
-          echo "published $(wc -c < "$DATA/guide.xml") bytes, $(grep -c '<programme' "$DATA/guide.xml") programmes"
+          test -s "$DATA/www/guide.xml"
+          grep -q '<tv[ >]' "$DATA/www/guide.xml"
+          echo "published $(wc -c < "$DATA/www/guide.xml") bytes, $(grep -c '<programme' "$DATA/www/guide.xml") programmes"
 
       - name: Bad-response path (garbage / HTTP 500, guide.xml must survive)
         run: |
           DATA="$(mktemp -d)"
-          printf '<tv><channel id="1.1"><display-name>old-good-guide</display-name></channel></tv>\n' > "$DATA/guide.xml"
-          cp "$DATA/guide.xml" "$DATA/guide.expected"
+          mkdir -p "$DATA/www"
+          printf '<tv><channel id="1.1"><display-name>old-good-guide</display-name></channel></tv>\n' > "$DATA/www/guide.xml"
+          cp "$DATA/www/guide.xml" "$DATA/guide.expected"
 
           # /bad returns HTTP 200 with garbage: the script's own sanity check
           # must reject it.
@@ -112,8 +113,8 @@ jobs:
 
           # Either way: the pre-existing guide is byte-identical and no temp
           # file was left behind.
-          cmp "$DATA/guide.xml" "$DATA/guide.expected"
-          if find "$DATA" -name '*.tmp' | grep -q .; then
+          cmp "$DATA/www/guide.xml" "$DATA/guide.expected"
+          if find "$DATA/.tmp" "$DATA/www" -type f ! -name guide.xml | grep -q .; then
             echo "::error::temporary files left in DATA_DIR after failure:"
             ls -la "$DATA"
             exit 1
@@ -133,6 +134,9 @@ jobs:
 
       - name: Restart path (future mtime refetches, fresh guide is kept)
         run: MOCK_URL="http://127.0.0.1:${MOCK_PORT}" sh tests/refetch-age.sh
+
+      - name: Layout, size cap, log sanitising, legacy migration
+        run: MOCK_URL="http://127.0.0.1:${MOCK_PORT}" sh tests/layout.sh
 
       - name: DeviceAuth reaches the API but never curl's argv
         run: MOCK_URL="http://127.0.0.1:${MOCK_PORT}" sh tests/deviceauth-argv.sh

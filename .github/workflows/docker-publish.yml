@@ -129,9 +129,11 @@ jobs:
             -e API_BASE=http://host.docker.internal:8964 \
             -v "$SMOKE":/data \
             "$IMAGE"
-          test -s "$SMOKE/guide.xml"
-          grep -q '<tv[ >]' "$SMOKE/guide.xml"
-          echo "smoke test OK: $(wc -c < "$SMOKE/guide.xml") byte guide.xml published"
+          test -s "$SMOKE/www/guide.xml"
+          grep -q '<tv[ >]' "$SMOKE/www/guide.xml"
+          # published file must belong to the unprivileged app user, not root
+          test "$(stat -c %u "$SMOKE/www/guide.xml")" = 10001
+          echo "smoke test OK: $(wc -c < "$SMOKE/www/guide.xml") byte guide.xml published"
 
       # Sign the published Docker image digest — only on real publishes
       # (push to main / v* tags).
