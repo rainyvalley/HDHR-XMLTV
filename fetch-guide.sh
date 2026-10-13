@@ -29,9 +29,11 @@ fetch() {
   log "tuner DeviceID=$id, got DeviceAuth (${#auth} chars)"
 
   tmp="$OUT.tmp"
-  # --data-urlencode via -G: DeviceAuth can contain characters that need encoding
-  curl -fsS --compressed --max-time 300 -G "$API_BASE/api/xmltv" \
-       --data-urlencode "DeviceAuth=$auth" -o "$tmp" \
+  # --data-urlencode via -G: DeviceAuth can contain characters that need encoding.
+  # Fed on stdin (name@-) so the token never appears in curl's argv, which
+  # any user on the host can read via ps / /proc/<pid>/cmdline.
+  printf '%s' "$auth" | curl -fsS --compressed --max-time 300 -G "$API_BASE/api/xmltv" \
+       --data-urlencode "DeviceAuth@-" -o "$tmp" \
     || { log "ERROR: XMLTV download failed"; rm -f "$tmp"; return 1; }
 
   # one pass over the file: sanity check so a bad response never replaces a
@@ -71,9 +73,12 @@ while true; do
   # SiliconDust asks for randomized 20-28h between requests
   s=$(awk 'BEGIN{srand(); print int(72000 + rand()*28800)}')
   # skip the fetch on restart if the file is fresher than 20h, but
-  # subtract its age so the gap stays in the 20-28h window
-  if [ -s "$OUT" ] && [ -n "$(find "$OUT" -mmin -1200 2>/dev/null)" ]; then
-    age=$(( $(date +%s) - $(stat -c %Y "$OUT") ))
+  # subtract its age so the gap stays in the 20-28h window. A future mtime
+  # (clock skew, restored volume) counts as stale: otherwise its negative
+  # age would push the next fetch out by however far ahead it is.
+  age=-1
+  [ -s "$OUT" ] && age=$(( $(date +%s) - $(stat -c %Y "$OUT") ))
+  if [ "$age" -ge 0 ] && [ "$age" -lt 72000 ]; then
     s=$(( s - age ))
     log "guide.xml is less than 20h old, next fetch in $s s"
   elif ! fetch; then
