@@ -42,7 +42,6 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             body = b"not found\n"
         self.send_header("Content-Type", "application/xml")
-        self.send_header("Content-Type", "application/xml")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
