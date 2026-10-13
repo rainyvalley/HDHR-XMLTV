@@ -26,15 +26,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Install linters
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          # Pinned hadolint release; the download is from the official repo.
-          sudo curl -fsSL -o /usr/local/bin/hadolint \
+          # Pinned hadolint release, verified against its published sha256
+          # before it is installed.
+          curl -fsSL -o hadolint \
             https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
-          sudo chmod +x /usr/local/bin/hadolint
+          echo "56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010  hadolint" | sha256sum -c -
+          sudo install -m 0755 hadolint /usr/local/bin/hadolint
+          rm -f hadolint
           shellcheck --version
           hadolint --version
 
