@@ -128,6 +128,7 @@ jobs:
           chmod 0755 "$SMOKE"
           docker run --rm --add-host=host.docker.internal:host-gateway \
             -e RUN_ONCE=1 -e SERVE=0 \
+            -e DEVICE_IP=192.0.2.50 \
             -e DEVICE_URL=http://host.docker.internal:8964 \
             -e API_BASE=http://host.docker.internal:8964 \
             -v "$SMOKE":/data \

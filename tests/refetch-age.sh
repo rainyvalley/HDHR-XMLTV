@@ -10,7 +10,7 @@ OLD='<tv><channel id="1.1"><display-name>old-guide</display-name></channel></tv>
 # Run the loop in its own session for a few seconds, then kill the whole
 # process group (the loop ends up in a long `sleep`).
 run_loop() {
-  DATA_DIR="$1" SERVE=0 DEVICE_URL="$MOCK_URL" API_BASE="$MOCK_URL" \
+  DATA_DIR="$1" SERVE=0 DEVICE_IP=192.0.2.50 DEVICE_URL="$MOCK_URL" API_BASE="$MOCK_URL" \
     setsid sh "$SCRIPT" > "$1/log" 2>&1 &
   pid=$!
   i=0

@@ -54,7 +54,7 @@ jobs:
         run: hadolint --ignore DL3018 Dockerfile
 
       - name: Validate docker-compose.yml
-        run: docker compose -f docker-compose.yml config -q
+        run: DEVICE_IP=192.0.2.50 docker compose -f docker-compose.yml config -q
 
       - name: Start mock tuner/API server
         run: |
@@ -73,6 +73,7 @@ jobs:
         run: |
           DATA="$(mktemp -d)"
           RUN_ONCE=1 \
+            DEVICE_IP=192.0.2.50 \
             DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
             API_BASE="http://127.0.0.1:${MOCK_PORT}" \
             DATA_DIR="$DATA" \
@@ -91,6 +92,7 @@ jobs:
           # /bad returns HTTP 200 with garbage: the script's own sanity check
           # must reject it.
           if RUN_ONCE=1 \
+              DEVICE_IP=192.0.2.50 \
               DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
               API_BASE="http://127.0.0.1:${MOCK_PORT}/bad" \
               DATA_DIR="$DATA" \
@@ -102,6 +104,7 @@ jobs:
 
           # /err returns HTTP 500: curl -fsS must fail.
           if RUN_ONCE=1 \
+              DEVICE_IP=192.0.2.50 \
               DEVICE_URL="http://127.0.0.1:${MOCK_PORT}" \
               API_BASE="http://127.0.0.1:${MOCK_PORT}/err" \
               DATA_DIR="$DATA" \
@@ -124,6 +127,7 @@ jobs:
         run: |
           DATA="$(mktemp -d)"
           if RUN_ONCE=1 \
+              DEVICE_IP=192.0.2.50 \
               DEVICE_URL="http://127.0.0.1:59999" \
               DATA_DIR="$DATA" \
               sh fetch-guide.sh; then
@@ -131,6 +135,9 @@ jobs:
             exit 1
           fi
           echo "unreachable tuner correctly failed"
+
+      - name: DEVICE_IP is required (fail fast when unset)
+        run: sh tests/device-ip-required.sh
 
       - name: Restart path (future mtime refetches, fresh guide is kept)
         run: MOCK_URL="http://127.0.0.1:${MOCK_PORT}" sh tests/refetch-age.sh
