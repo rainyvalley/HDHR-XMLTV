@@ -29,7 +29,7 @@ DEVICE_URL="${DEVICE_URL:-http://$DEVICE_IP}"
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 
 fetch() {
-  info=$(curl -fsS --max-time 15 "$DEVICE_URL/discover.json") || { log "ERROR: can't reach tuner at $DEVICE_URL"; return 1; }
+  info=$(curl -fsS --max-time 15 --max-filesize 1048576 "$DEVICE_URL/discover.json") || { log "ERROR: can't reach tuner at $DEVICE_URL"; return 1; }
   id=$(printf '%s' "$info" | jq -r '.DeviceID // empty')
   auth=$(printf '%s' "$info" | jq -r '.DeviceAuth // empty')
   [ -n "$auth" ] || { log "ERROR: no DeviceAuth in discover.json"; return 1; }
@@ -54,6 +54,9 @@ EOF
     head -c 300 "$tmp" | LC_ALL=C tr -c '[:print:]' '?'; echo
     rm -f "$tmp"; return 1
   fi
+  # mktemp makes 0600; the guide is public (served over HTTP) and must be readable by
+  # other uids, e.g. a bind-mount inspected from the host
+  chmod 0644 "$tmp" || { log "ERROR: could not chmod temp file, keeping old guide"; rm -f "$tmp"; return 1; }
   mv "$tmp" "$OUT" || { log "ERROR: could not publish $OUT, keeping old guide"; rm -f "$tmp"; return 1; }
   log "published $OUT ($(wc -c < "$OUT") bytes, $chans channels, $progs programmes)"
 }

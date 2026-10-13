@@ -123,6 +123,9 @@ jobs:
           IMAGE="$(printf '%s\n' "$TAGS" | head -n1)"
           echo "smoke-testing image: $IMAGE"
           SMOKE="$(mktemp -d)"
+          # mktemp -d is 0700; the entrypoint chowns it to uid 10001, so the
+          # runner must still be able to traverse it afterwards
+          chmod 0755 "$SMOKE"
           docker run --rm --add-host=host.docker.internal:host-gateway \
             -e RUN_ONCE=1 -e SERVE=0 \
             -e DEVICE_URL=http://host.docker.internal:8964 \
