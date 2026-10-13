@@ -71,9 +71,12 @@ while true; do
   # SiliconDust asks for randomized 20-28h between requests
   s=$(awk 'BEGIN{srand(); print int(72000 + rand()*28800)}')
   # skip the fetch on restart if the file is fresher than 20h, but
-  # subtract its age so the gap stays in the 20-28h window
-  if [ -s "$OUT" ] && [ -n "$(find "$OUT" -mmin -1200 2>/dev/null)" ]; then
-    age=$(( $(date +%s) - $(stat -c %Y "$OUT") ))
+  # subtract its age so the gap stays in the 20-28h window. A future mtime
+  # (clock skew, restored volume) counts as stale: otherwise its negative
+  # age would push the next fetch out by however far ahead it is.
+  age=-1
+  [ -s "$OUT" ] && age=$(( $(date +%s) - $(stat -c %Y "$OUT") ))
+  if [ "$age" -ge 0 ] && [ "$age" -lt 72000 ]; then
     s=$(( s - age ))
     log "guide.xml is less than 20h old, next fetch in $s s"
   elif ! fetch; then
