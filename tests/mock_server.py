@@ -7,6 +7,7 @@ Routes (GET only):
                              403 unless DeviceAuth matches the discover.json token
   /bad/...                -> 200 with garbage (the script's own sanity check must catch it)
   /err/...                -> 500
+  /ctrl/...               -> 200 with ANSI escapes / control bytes (not XMLTV)
 
 Usage: python3 tests/mock_server.py [port] [host]   (defaults 8964, 127.0.0.1)
 """
@@ -34,6 +35,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         bad_xml = self.path.startswith("/bad")
         error = self.path.startswith("/err")
+        ctrl = self.path.startswith("/ctrl")
         url = urlsplit(self.path)
         if url.path == "/api/xmltv" and parse_qs(url.query).get("DeviceAuth") != [DEVICE_AUTH]:
             body = b"bad DeviceAuth\n"
@@ -41,6 +43,9 @@ class Handler(BaseHTTPRequestHandler):
         elif error:
             body = b"internal server error\n"
             self.send_response(500)
+        elif ctrl:
+            body = b"\x1b[31mEVIL\x1b[0m\x07\x00\r not xmltv\n"
+            self.send_response(200)
         elif bad_xml:
             body = b"<html><body>garbage, not xmltv</body></html>\n"
             self.send_response(200)

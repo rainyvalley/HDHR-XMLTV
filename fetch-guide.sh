@@ -1,14 +1,16 @@
 #!/bin/sh
 # Pull DeviceAuth from an HDHomeRun on the LAN, download the SiliconDust XMLTV
-# guide, and publish it as /data/guide.xml (served over HTTP by busybox httpd).
+# guide, and publish it as $DATA_DIR/www/guide.xml (served over HTTP by busybox
+# httpd; only the www/ subdirectory is served).
 #
 # Env:
 #   DEVICE_IP   tuner address                         (default 192.168.3.193)
-#   PORT        HTTP port to serve /data on           (default 8088)
+#   PORT        HTTP port to serve www/ on (>1024)    (default 8088)
 #   SERVE       1 = start httpd, 0 = don't            (default 1)
 #   RUN_ONCE    1 = fetch once (forced) and exit      (default 0)
 #   API_BASE    SiliconDust API base URL              (default https://api.hdhomerun.com)
-#   DATA_DIR    output directory                      (default /data)
+#   DATA_DIR    state directory                       (default /data)
+#   MAX_FILESIZE  max XMLTV download in bytes         (default 268435456)
 
 DEVICE_IP="${DEVICE_IP:-192.168.3.193}"
 PORT="${PORT:-8088}"
@@ -16,7 +18,12 @@ SERVE="${SERVE:-1}"
 RUN_ONCE="${RUN_ONCE:-0}"
 API_BASE="${API_BASE:-https://api.hdhomerun.com}"
 DATA_DIR="${DATA_DIR:-/data}"
-OUT="$DATA_DIR/guide.xml"
+MAX_FILESIZE="${MAX_FILESIZE:-268435456}"
+# Only WWW_DIR is served. Temp files live in TMP_DIR, a sibling on the same
+# filesystem so the final mv stays an atomic rename, but never web-visible.
+WWW_DIR="$DATA_DIR/www"
+TMP_DIR="$DATA_DIR/.tmp"
+OUT="$WWW_DIR/guide.xml"
 DEVICE_URL="${DEVICE_URL:-http://$DEVICE_IP}"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
@@ -28,11 +35,11 @@ fetch() {
   [ -n "$auth" ] || { log "ERROR: no DeviceAuth in discover.json"; return 1; }
   log "tuner DeviceID=$id, got DeviceAuth (${#auth} chars)"
 
-  tmp="$OUT.tmp"
+  tmp=$(mktemp "$TMP_DIR/guide.XXXXXX") || { log "ERROR: can't create temp file in $TMP_DIR"; return 1; }
   # --data-urlencode via -G: DeviceAuth can contain characters that need encoding.
   # Fed on stdin (name@-) so the token never appears in curl's argv, which
   # any user on the host can read via ps / /proc/<pid>/cmdline.
-  printf '%s' "$auth" | curl -fsS --compressed --max-time 300 -G "$API_BASE/api/xmltv" \
+  printf '%s' "$auth" | curl -fsS --compressed --max-time 300 --max-filesize "$MAX_FILESIZE" -G "$API_BASE/api/xmltv" \
        --data-urlencode "DeviceAuth@-" -o "$tmp" \
     || { log "ERROR: XMLTV download failed"; rm -f "$tmp"; return 1; }
 
@@ -43,14 +50,22 @@ $(awk '/<tv/{t=1}/<channel /{c++}/<programme/{p++}END{print t+0, c+0, p+0}' "$tm
 EOF
   if [ "$has_tv" -eq 0 ] || [ "$progs" -eq 0 ]; then
     log "ERROR: response doesn't look like XMLTV, keeping old guide"
-    head -c 300 "$tmp"; echo
+    # untrusted bytes: printable ASCII only, short
+    head -c 300 "$tmp" | LC_ALL=C tr -c '[:print:]' '?'; echo
     rm -f "$tmp"; return 1
   fi
-  mv "$tmp" "$OUT"
+  mv "$tmp" "$OUT" || { log "ERROR: could not publish $OUT, keeping old guide"; rm -f "$tmp"; return 1; }
   log "published $OUT ($(wc -c < "$OUT") bytes, $chans channels, $progs programmes)"
 }
 
-mkdir -p "$DATA_DIR"
+mkdir -p "$WWW_DIR" "$TMP_DIR" || { log "ERROR: can't create directories under $DATA_DIR"; exit 1; }
+# Upgrade from versions that kept guide.xml directly in DATA_DIR: move it into
+# the served directory so the freshness check still sees it.
+if [ -f "$DATA_DIR/guide.xml" ] && [ ! -e "$OUT" ]; then
+  mv "$DATA_DIR/guide.xml" "$OUT" && log "moved legacy guide.xml into $WWW_DIR"
+fi
+# Drop temp files orphaned by a crash (older than a day; never a live fetch)
+find "$TMP_DIR" -name 'guide.*' -mmin +1440 -exec rm -f {} + 2>/dev/null
 
 if [ "$RUN_ONCE" = "1" ]; then
   fetch; exit $?
@@ -61,8 +76,8 @@ if [ "$SERVE" = "1" ]; then
   if command -v httpd >/dev/null 2>&1; then HTTPD="httpd"
   elif command -v busybox-extras >/dev/null 2>&1; then HTTPD="busybox-extras httpd"
   else HTTPD=""; fi
-  if [ -n "$HTTPD" ] && $HTTPD -p "$PORT" -h "$DATA_DIR"; then
-    log "serving $DATA_DIR on :$PORT  ->  http://<host>:$PORT/guide.xml"
+  if [ -n "$HTTPD" ] && $HTTPD -p "$PORT" -h "$WWW_DIR"; then
+    log "serving $WWW_DIR on :$PORT  ->  http://<host>:$PORT/guide.xml"
   else
     log "ERROR: could not start the HTTP server"
     exit 1
