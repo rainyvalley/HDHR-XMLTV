@@ -8,7 +8,7 @@ Routes (GET only):
   /bad/...                -> 200 with garbage (the script's own sanity check must catch it)
   /err/...                -> 500
 
-Usage: python3 tests/mock_server.py [port]   (default 8964, binds 127.0.0.1)
+Usage: python3 tests/mock_server.py [port] [host]   (defaults 8964, 127.0.0.1)
 """
 import json
 import sys
