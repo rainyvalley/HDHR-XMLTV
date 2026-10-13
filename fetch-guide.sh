@@ -4,7 +4,8 @@
 # httpd; only the www/ subdirectory is served).
 #
 # Env:
-#   DEVICE_IP   tuner address                         (default 192.168.3.193)
+#   DEVICE_IP   tuner address                         (REQUIRED unless DEVICE_URL is set)
+#   DEVICE_URL  tuner base URL, overrides DEVICE_IP   (default http://$DEVICE_IP)
 #   PORT        HTTP port to serve www/ on (>1024)    (default 8088)
 #   SERVE       1 = start httpd, 0 = don't            (default 1)
 #   RUN_ONCE    1 = fetch once (forced) and exit      (default 0)
@@ -12,7 +13,7 @@
 #   DATA_DIR    state directory                       (default /data)
 #   MAX_FILESIZE  max XMLTV download in bytes         (default 268435456)
 
-DEVICE_IP="${DEVICE_IP:-192.168.3.193}"
+DEVICE_IP="${DEVICE_IP:-}"
 PORT="${PORT:-8088}"
 SERVE="${SERVE:-1}"
 RUN_ONCE="${RUN_ONCE:-0}"
@@ -24,7 +25,13 @@ MAX_FILESIZE="${MAX_FILESIZE:-268435456}"
 WWW_DIR="$DATA_DIR/www"
 TMP_DIR="$DATA_DIR/.tmp"
 OUT="$WWW_DIR/guide.xml"
-DEVICE_URL="${DEVICE_URL:-http://$DEVICE_IP}"
+if [ -z "${DEVICE_URL:-}" ]; then
+  if [ -z "$DEVICE_IP" ]; then
+    echo "ERROR: DEVICE_IP is not set - set DEVICE_IP to your HDHomeRun's address" >&2
+    exit 1
+  fi
+  DEVICE_URL="http://$DEVICE_IP"
+fi
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 

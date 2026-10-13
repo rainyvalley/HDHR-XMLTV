@@ -12,7 +12,7 @@ rc=0
 fail() { echo "FAIL: $*"; rc=1; }
 run() { # run <data dir> [api suffix] [extra env assignments...]
   d=$1; api=$MOCK_URL$2; shift 2
-  env RUN_ONCE=1 DEVICE_URL="$MOCK_URL" API_BASE="$api" DATA_DIR="$d" "$@" sh "$SCRIPT" 2>&1
+  env RUN_ONCE=1 DEVICE_IP=192.0.2.50 DEVICE_URL="$MOCK_URL" API_BASE="$api" DATA_DIR="$d" "$@" sh "$SCRIPT" 2>&1
 }
 
 D=$(mktemp -d)

@@ -19,7 +19,7 @@ EOF
 chmod +x "$W/bin/curl"
 
 rc=0
-if ! PATH="$W/bin:$PATH" RUN_ONCE=1 DEVICE_URL="$MOCK_URL" API_BASE="$MOCK_URL" \
+if ! PATH="$W/bin:$PATH" RUN_ONCE=1 DEVICE_IP=192.0.2.50 DEVICE_URL="$MOCK_URL" API_BASE="$MOCK_URL" \
      DATA_DIR="$W/data" sh "$SCRIPT"; then
   echo "fetch failed (DeviceAuth not delivered to the API?)"; rc=1
 elif ! grep -q '<programme' "$W/data/www/guide.xml"; then

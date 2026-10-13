@@ -4,7 +4,7 @@ services:
     container_name: hdhr-xmltv
     restart: unless-stopped
     environment:
-      DEVICE_IP: <your IP Here>
+      DEVICE_IP: ${DEVICE_IP:?set DEVICE_IP to your HDHomeRun's address}
       TZ: America/Los_Angeles
     ports:
       - "8088:8088"

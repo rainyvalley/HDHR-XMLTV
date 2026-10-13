@@ -41,13 +41,18 @@ One-off test fetch without starting the server:
 
 | Variable    | Default                     | Meaning                                  |
 |-------------|-----------------------------|------------------------------------------|
-| `DEVICE_IP` | `192.168.3.193`             | Tuner address                            |
+| `DEVICE_IP` | none (**required**)         | Tuner address, e.g. `192.0.2.50`         |
+| `DEVICE_URL` | `http://$DEVICE_IP`        | Full tuner base URL; if set, `DEVICE_IP` is not needed |
 | `PORT`      | `8088`                      | HTTP port inside the container           |
 | `SERVE`     | `1`                         | `0` = don't start the HTTP server        |
 | `RUN_ONCE`  | `0`                         | `1` = fetch once and exit                |
 | `API_BASE`  | `https://api.hdhomerun.com` | SiliconDust API base URL                 |
 | `DATA_DIR`  | `/data`                     | State directory (`www/guide.xml` is the published guide) |
 | `MAX_FILESIZE` | `268435456`              | Max XMLTV download in bytes (256 MiB); larger responses are rejected and the old guide kept |
+
+`DEVICE_IP` has no default. If neither `DEVICE_IP` nor `DEVICE_URL` is set the container exits
+immediately with `ERROR: DEVICE_IP is not set - set DEVICE_IP to your HDHomeRun's address`, and
+`docker compose` refuses to start. Put `DEVICE_IP=192.0.2.50` (your tuner's address) in `.env`.
 
 ## Upgrading / permissions
 

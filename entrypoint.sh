@@ -7,6 +7,12 @@ DATA_DIR="${DATA_DIR:-/data}"
 APP_UID=10001   # keep in sync with the Dockerfile
 APP_GID=10001
 
+# Fail fast, before any chown/privilege drop. DEVICE_URL is an alternative.
+if [ -z "${DEVICE_IP:-}" ] && [ -z "${DEVICE_URL:-}" ]; then
+  echo "ERROR: DEVICE_IP is not set - set DEVICE_IP to your HDHomeRun's address" >&2
+  exit 1
+fi
+
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$DATA_DIR" || exit 1
   chown -R "$APP_UID:$APP_GID" "$DATA_DIR" || { echo "ERROR: can't chown $DATA_DIR" >&2; exit 1; }
