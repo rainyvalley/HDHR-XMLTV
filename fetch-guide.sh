@@ -29,9 +29,11 @@ fetch() {
   log "tuner DeviceID=$id, got DeviceAuth (${#auth} chars)"
 
   tmp="$OUT.tmp"
-  # --data-urlencode via -G: DeviceAuth can contain characters that need encoding
-  curl -fsS --compressed --max-time 300 -G "$API_BASE/api/xmltv" \
-       --data-urlencode "DeviceAuth=$auth" -o "$tmp" \
+  # --data-urlencode via -G: DeviceAuth can contain characters that need encoding.
+  # Fed on stdin (name@-) so the token never appears in curl's argv, which
+  # any user on the host can read via ps / /proc/<pid>/cmdline.
+  printf '%s' "$auth" | curl -fsS --compressed --max-time 300 -G "$API_BASE/api/xmltv" \
+       --data-urlencode "DeviceAuth@-" -o "$tmp" \
     || { log "ERROR: XMLTV download failed"; rm -f "$tmp"; return 1; }
 
   # one pass over the file: sanity check so a bad response never replaces a
