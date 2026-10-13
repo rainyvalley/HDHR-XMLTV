@@ -23,6 +23,7 @@ grep -q '<programme' "$D/www/guide.xml" || fail "guide not published to www/"
 echo "$out" | grep -q 'moved legacy' || fail "legacy migration not logged"
 [ "$(ls -A "$D/www")" = "guide.xml" ] || fail "www/ holds more than guide.xml: $(ls -A "$D/www")"
 [ -z "$(ls -A "$D/.tmp")" ] || fail "temp files left in .tmp: $(ls -A "$D/.tmp")"
+[ "$(stat -c %a "$D/www/guide.xml")" = 644 ] || fail "guide.xml mode is $(stat -c %a "$D/www/guide.xml"), want 644"
 
 # oversized download: rejected, previous guide untouched
 cp "$D/www/guide.xml" "$D/expected"

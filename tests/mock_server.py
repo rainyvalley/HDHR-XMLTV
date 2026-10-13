@@ -11,6 +11,7 @@ Routes (GET only):
 
 Usage: python3 tests/mock_server.py [port] [host]   (defaults 8964, 127.0.0.1)
 """
+
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -18,7 +19,13 @@ from urllib.parse import parse_qs, urlsplit
 
 # The token has characters that must be URL-encoded (+ / =).
 DEVICE_AUTH = "abc123+MOCK/AUTH=TOKEN0"
-DISCOVER = json.dumps({"DeviceID": "DEADBEEF0123", "DeviceAuth": DEVICE_AUTH, "FriendlyName": "mock-tuner"})
+DISCOVER = json.dumps(
+    {
+        "DeviceID": "DEADBEEF0123",
+        "DeviceAuth": DEVICE_AUTH,
+        "FriendlyName": "mock-tuner",
+    }
+)
 XMLTV = """<tv generator-info-name="mock-server">
   <channel id="2.1"><display-name>MOCK 2.1</display-name></channel>
   <programme start="20261009000000 +0000" stop="20261009010000 +0000" channel="2.1">
@@ -37,7 +44,9 @@ class Handler(BaseHTTPRequestHandler):
         error = self.path.startswith("/err")
         ctrl = self.path.startswith("/ctrl")
         url = urlsplit(self.path)
-        if url.path == "/api/xmltv" and parse_qs(url.query).get("DeviceAuth") != [DEVICE_AUTH]:
+        if url.path == "/api/xmltv" and parse_qs(url.query).get("DeviceAuth") != [
+            DEVICE_AUTH
+        ]:
             body = b"bad DeviceAuth\n"
             self.send_response(403)
         elif error:
@@ -50,7 +59,9 @@ class Handler(BaseHTTPRequestHandler):
             body = b"<html><body>garbage, not xmltv</body></html>\n"
             self.send_response(200)
         elif self.path.split("?")[0] in ("/discover.json", "/api/xmltv"):
-            body = (DISCOVER if self.path.startswith("/discover.json") else XMLTV).encode()
+            body = (
+                DISCOVER if self.path.startswith("/discover.json") else XMLTV
+            ).encode()
             self.send_response(200)
         else:
             self.send_response(404)

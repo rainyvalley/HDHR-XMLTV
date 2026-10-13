@@ -14,6 +14,11 @@ SiliconDust XMLTV guide, and serves it as `guide.xml` so Plex and Jellyfin can b
 - Runs as an unprivileged user (uid/gid 10001). The container starts as root only long enough to
   `chown -R` the data directory (so volumes created by older, root-running versions keep working),
   then drops privileges. Port 8088 is above 1024, so no root is needed to listen.
+- The compose file hardens the container: `read_only: true` root filesystem (only the `/data`
+  volume is writable), `cap_drop: [ALL]` with just `CHOWN`, `SETUID` and `SETGID` added back (what
+  the entrypoint needs to chown the volume and drop privileges), and `no-new-privileges`.
+  `init: true` runs a minimal init as PID 1 so `docker stop` is immediate instead of waiting out
+  the 10 s kill timeout. Published `guide.xml` is mode 0644.
 
 ## Run
 
@@ -50,7 +55,7 @@ One-off test fetch without starting the server:
   is moved there on first start, so the freshness check still works.
 - On first start the entrypoint changes ownership of `./data` to uid/gid 10001. To skip that, run
   the container as a user that already owns the directory (`user: "1000:1000"` in compose); the
-  entrypoint then does no chown and no privilege drop.
+  entrypoint then does no chown and no privilege drop (the capabilities above are then unused).
 - `MAX_FILESIZE` is enforced by curl from the response size when the server announces one.
 
 Guide data is 2 days without a DVR guide subscription, 14 days with one. See the
