@@ -32,7 +32,7 @@ jobs:
 
       - name: Install linters
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
+          # shellcheck ships preinstalled on the ubuntu-latest runner image.
           # Pinned hadolint release, verified against its published sha256
           # before it is installed.
           curl -fsSL -o hadolint \
