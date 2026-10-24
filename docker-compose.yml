@@ -3,9 +3,19 @@ services:
     build: .
     container_name: hdhr-xmltv
     restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:          # only what entrypoint.sh needs to chown /data and drop to uid 10001
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
     environment:
       DEVICE_IP: ${DEVICE_IP:?set DEVICE_IP to your HDHomeRun's address}
-      TZ: America/Los_Angeles
+      TZ: ${TZ:-America/Los_Angeles}
     ports:
       - "8088:8088"
     volumes:

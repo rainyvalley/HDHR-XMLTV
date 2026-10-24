@@ -8,6 +8,9 @@ Routes (GET only):
   /bad/...                -> 200 with garbage (the script's own sanity check must catch it)
   /err/...                -> 500
   /ctrl/...               -> 200 with ANSI escapes / control bytes (not XMLTV)
+  /trunc/...              -> 200 with XMLTV cut off before </tv>
+  /mini/...               -> 200 with valid XMLTV on ONE line (5 channels, 7 programmes)
+  /evilid/...             -> only for /discover.json: DeviceID holds a newline and ANSI escape
 
 Usage: python3 tests/mock_server.py [port] [host]   (defaults 8964, 127.0.0.1)
 """
@@ -38,11 +41,21 @@ XMLTV = """<tv generator-info-name="mock-server">
 """
 
 
+MINI = (
+    "<tv>"
+    + "".join(f'<channel id="{i}"><display-name>c{i}</display-name></channel>' for i in range(5))
+    + "".join(f'<programme start="1" stop="2" channel="0"><title>p{i}</title></programme>' for i in range(7))
+    + "</tv>\n"
+)
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         bad_xml = self.path.startswith("/bad")
         error = self.path.startswith("/err")
         ctrl = self.path.startswith("/ctrl")
+        trunc = self.path.startswith("/trunc")
+        mini = self.path.startswith("/mini")
         url = urlsplit(self.path)
         if url.path == "/api/xmltv" and parse_qs(url.query).get("DeviceAuth") != [
             DEVICE_AUTH
@@ -55,8 +68,19 @@ class Handler(BaseHTTPRequestHandler):
         elif ctrl:
             body = b"\x1b[31mEVIL\x1b[0m\x07\x00\r not xmltv\n"
             self.send_response(200)
+        elif trunc:
+            body = XMLTV.rsplit("</tv>", 1)[0].encode()
+            self.send_response(200)
+        elif mini:
+            body = MINI.encode()
+            self.send_response(200)
         elif bad_xml:
             body = b"<html><body>garbage, not xmltv</body></html>\n"
+            self.send_response(200)
+        elif self.path.startswith("/evilid/discover.json"):
+            doc = json.loads(DISCOVER)
+            doc["DeviceID"] = "FAKE\nFORGED LINE \x1b[31mred"
+            body = json.dumps(doc).encode()
             self.send_response(200)
         elif self.path.split("?")[0] in ("/discover.json", "/api/xmltv"):
             body = (
