@@ -80,7 +80,7 @@ The compose file runs the container with a read-only root filesystem (only `./da
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+BSD 2-Clause. See [LICENSE](LICENSE).
 
 ---
 
