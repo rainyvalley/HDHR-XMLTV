@@ -22,7 +22,7 @@ API_BASE="${API_BASE:-https://api.hdhomerun.com}"
 DATA_DIR="${DATA_DIR:-/data}"
 MAX_FILESIZE="${MAX_FILESIZE:-268435456}"
 # Only WWW_DIR is served. Temp files live in TMP_DIR, a sibling on the same
-# filesystem so the final mv stays an atomic rename, but never web-visible.
+# filesystem (the final mv is a rename), never web-visible.
 WWW_DIR="$DATA_DIR/www"
 TMP_DIR="$DATA_DIR/.tmp"
 OUT="$WWW_DIR/guide.xml"
@@ -43,7 +43,7 @@ case "$API_BASE" in
   *) log "ERROR: API_BASE must start with https://"; exit 1 ;;
 esac
 
-# Wait before the next try after a failed fetch: 15 min, then 30, 60, 120,
+# Wait before the next try after a failed fetch: 15, 30, 60, 120, 240 min,
 # capped at 6 h. $1 is the number of failures so far (1 or more).
 retry_delay() {
   d=900; n=$1
@@ -67,7 +67,7 @@ fetch() {
   id=$(printf '%s' "$info" | jq -r '.DeviceID // empty')
   auth=$(printf '%s' "$info" | jq -r '.DeviceAuth // empty')
   [ -n "$auth" ] || { log "ERROR: no DeviceAuth in discover.json"; return 1; }
-  # untrusted: printable ASCII only, short, so a fake tuner cannot forge log lines
+  # untrusted: printable ASCII only and short
   id=$(printf '%s' "$id" | LC_ALL=C tr -c ' -~' '?' | head -c 64)
   log "tuner DeviceID=$id, got DeviceAuth (${#auth} chars)"
 
@@ -102,8 +102,8 @@ EOF
 }
 
 mkdir -p "$WWW_DIR" "$TMP_DIR" || { log "ERROR: can't create directories under $DATA_DIR"; exit 1; }
-# Upgrade from versions that kept guide.xml directly in DATA_DIR: move it into
-# the served directory so the freshness check still sees it.
+# A guide.xml left directly in DATA_DIR is moved into the served directory so
+# the freshness check still sees it.
 if [ -f "$DATA_DIR/guide.xml" ] && [ ! -e "$OUT" ]; then
   mv "$DATA_DIR/guide.xml" "$OUT" && log "moved legacy guide.xml into $WWW_DIR"
 fi

@@ -2,9 +2,7 @@
 # (docker pull alpine:3.23; docker images --digests alpine).
 FROM alpine:3.23@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63
 # hadolint ignore=DL3018
-# Package versions are not pinned: Alpine removes old package builds from its
-# index, so a pin that exists today can break the build tomorrow. The base
-# image is pinned instead.
+# Package versions are not pinned; the base image is pinned instead.
 RUN apk add --no-cache curl jq busybox-extras tzdata \
  && addgroup -g 10001 -S app \
  && adduser -u 10001 -S -D -H -G app -s /sbin/nologin app

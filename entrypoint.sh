@@ -1,7 +1,6 @@
 #!/bin/sh
 # Container entrypoint. Started as root (the default), fix ownership of the
-# data volume so volumes created by older root-running versions keep working,
-# then drop to the unprivileged app user. Started as any other uid (compose
+# data volume, then drop to the unprivileged app user. Started as any other uid (compose
 # `user:` / docker run --user), just run the fetcher as that uid.
 DATA_DIR="${DATA_DIR:-/data}"
 APP_UID=10001   # keep in sync with the Dockerfile

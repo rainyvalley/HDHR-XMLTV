@@ -7,8 +7,7 @@ name: Docker
 
 on:
   schedule:
-    # Kept as a build-only canary to keep the GHA layer cache warm; the
-    # scheduled run is never pushed (see push:false on the build step).
+    # Scheduled build-only canary; the build step pushes only on push events.
     - cron: '37 9 * * *'
   push:
     branches: [ "main" ]
