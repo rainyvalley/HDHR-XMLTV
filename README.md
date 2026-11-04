@@ -54,7 +54,7 @@ Set these as environment variables, in `.env` or in `docker-compose.yml`.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DEVICE_IP` | none (**required**) | Tuner address, e.g. `192.0.2.50` |
-| `DEVICE_URL` | `http://$DEVICE_IP` | Full tuner URL. If set, `DEVICE_IP` is not needed |
+| `DEVICE_URL` | `http://$DEVICE_IP` | Full tuner URL. A plain `docker run` accepts it instead of `DEVICE_IP`; `docker-compose.yml` requires `DEVICE_IP` |
 | `PORT` | `8088` | Port inside the container |
 | `SERVE` | `1` | `0` = do not start the web server |
 | `RUN_ONCE` | `0` | `1` = fetch once and exit |
@@ -75,8 +75,8 @@ The compose file runs the container with a read-only root filesystem (only `./da
 
 ## Upgrading / permissions
 
-- The guide now lives at `./data/www/guide.xml`. A `guide.xml` left in `./data` by an older version is moved there on first start.
-- On first start the container changes ownership of `./data` to uid/gid 10001. To skip that, run it as a user that already owns the directory (`user: "1000:1000"` in compose). It then does no chown and no privilege drop.
+- The guide is `./data/www/guide.xml`. A `guide.xml` in `./data` is moved there on start.
+- When the container starts as root it changes ownership of `./data` to uid/gid 10001. To skip that, run it as a user that already owns the directory (`user: "1000:1000"` in compose); it then does no chown and no privilege drop.
 
 ## License
 
