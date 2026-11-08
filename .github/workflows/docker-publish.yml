@@ -108,8 +108,10 @@ jobs:
           # spliced into shell source.
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          # Start the mock tuner/API and wait for readiness (host-gateway is how
-          # the container reaches the runner).
+          # Start the mock tuner/API and wait for readiness. The container
+          # runs with host networking: fetch-guide.sh only allows plain http
+          # (no TLS) for localhost, so the URLs below must be 127.0.0.1 rather
+          # than host.docker.internal.
           python3 -I tests/mock_server.py 8964 0.0.0.0 &
           for _ in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8964/discover.json >/dev/null 2>&1 && break
@@ -125,11 +127,11 @@ jobs:
           # mktemp -d is 0700; the entrypoint chowns it to uid 10001, so the
           # runner must still be able to traverse it afterwards
           chmod 0755 "$SMOKE"
-          docker run --rm --add-host=host.docker.internal:host-gateway \
+          docker run --rm --network host \
             -e RUN_ONCE=1 -e SERVE=0 \
             -e DEVICE_IP=192.0.2.50 \
-            -e DEVICE_URL=http://host.docker.internal:8964 \
-            -e API_BASE=http://host.docker.internal:8964 \
+            -e DEVICE_URL=http://127.0.0.1:8964 \
+            -e API_BASE=http://127.0.0.1:8964 \
             -v "$SMOKE":/data \
             "$IMAGE"
           test -s "$SMOKE/www/guide.xml"
