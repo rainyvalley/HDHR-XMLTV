@@ -1,0 +1,3 @@
+# Created by docker compose (the guide volume) and the README install step.
+/data/
+/.env

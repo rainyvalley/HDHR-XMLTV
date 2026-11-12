@@ -17,7 +17,7 @@ Gets the TV guide for your HDHomeRun tuner and serves it at one URL, so Plex and
        docker logs -f hdhr-xmltv
        curl -s http://localhost:8088/guide.xml | head -c 300
 
-If `DEVICE_IP` is not set, the container stops with `ERROR: DEVICE_IP is not set - set DEVICE_IP to your HDHomeRun's address`, and `docker compose` refuses to start.
+`docker compose` refuses to start without `DEVICE_IP` and prints `set DEVICE_IP to your HDHomeRun's address`. A plain `docker run` with neither `DEVICE_IP` nor `DEVICE_URL` set stops at once with `ERROR: DEVICE_IP is not set - set DEVICE_IP to your HDHomeRun's address`.
 
 ## Use it
 
@@ -31,7 +31,7 @@ Guide data is 2 days without a DVR guide subscription, 14 days with one. See the
 | You see in the log | It means | Do this |
 |---|---|---|
 | `published .../guide.xml` | The guide is ready. | Nothing. |
-| `next fetch in N s` | The next download is 20-28 hours away. | Nothing. |
+| `next fetch in N s` | The next download is due then, 20-28 hours after the guide was published. | Nothing. |
 | `can't reach tuner` | The tuner did not answer at `DEVICE_IP`. | Check the address and that the tuner is on. |
 | `response doesn't look like complete XMLTV, keeping old guide` | The download was wrong or cut short. The old guide stays. | Wait for the retry. |
 | `retrying in N min` | A fetch failed. Retries start at 15 min and double up to 6 h. | Fix the cause above. |
@@ -45,11 +45,11 @@ The container also reports **healthy** in `docker ps` once the guide is being se
 - It downloads `https://api.hdhomerun.com/api/xmltv` (gzip). The new file replaces `guide.xml` only if it is complete XMLTV (it must contain `<tv`, at least one `<programme`, and end with `</tv>`).
 - It fetches every 20-28 hours at a random time, as SiliconDust asks. On a restart it skips the fetch if the file is under 20 hours old.
 - Only `guide.xml` (from `/data/www`) is served, on port 8088. Download temp files live in `/data/.tmp` and are never served.
-- `API_BASE` must start with `https://`, because the token is sent in the URL. (`http://localhost` is allowed for tests.)
+- `API_BASE` must start with `https://`, because the token is sent in the URL. (`http://localhost` and `http://127.0.0.1` are allowed for tests.)
 
 ## Settings
 
-Set these as environment variables, in `.env` or in `docker-compose.yml`.
+Set these as environment variables. `docker-compose.yml` passes only `DEVICE_IP` and `TZ` from `.env` to the container; to change any other one, add it to the `environment:` block too (and `PORT` to `ports:` as well).
 
 | Variable | Default | Meaning |
 |---|---|---|

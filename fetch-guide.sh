@@ -10,7 +10,7 @@
 #   SERVE       1 = start httpd, 0 = don't            (default 1)
 #   RUN_ONCE    1 = fetch once (forced) and exit      (default 0)
 #   API_BASE    SiliconDust API base URL, https only  (default https://api.hdhomerun.com)
-#               (plain http is accepted only for localhost, for tests)
+#               (plain http is accepted only for localhost/127.0.0.1, for tests)
 #   DATA_DIR    state directory                       (default /data)
 #   MAX_FILESIZE  max XMLTV download in bytes         (default 268435456)
 

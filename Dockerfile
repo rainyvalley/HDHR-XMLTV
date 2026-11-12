@@ -12,8 +12,10 @@ VOLUME /data
 EXPOSE 8088
 # Healthy when httpd answers with the published guide. Not healthy until the
 # first fetch has worked. With SERVE=0 there is no server to ask.
+# --spider checks the URL exists without downloading the guide (up to 256 MiB)
+# on every check; busybox wget stops reading the body after the first chunk.
 # Exec form with an explicit shell: the check reads ${SERVE} and ${PORT}.
 HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=3 \
-  CMD ["/bin/sh", "-c", "[ \"${SERVE:-1}\" = \"0\" ] || wget -q -O /dev/null \"http://127.0.0.1:${PORT:-8088}/guide.xml\""]
+  CMD ["/bin/sh", "-c", "[ \"${SERVE:-1}\" = \"0\" ] || wget -q --spider \"http://127.0.0.1:${PORT:-8088}/guide.xml\""]
 # Starts as root only to chown /data and then drops to uid 10001 (busybox su); see entrypoint.sh.
 ENTRYPOINT ["/entrypoint.sh"]
